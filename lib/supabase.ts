@@ -19,7 +19,7 @@ export async function uploadEmojiToSupabase(imageUrl: string, userId: string, pr
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.png`;
 
     // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('emojis')
       .upload(fileName, blob);
 
@@ -43,9 +43,61 @@ export async function uploadEmojiToSupabase(imageUrl: string, userId: string, pr
 
     if (insertError) throw insertError;
 
-    return { data: insertData, error: null };
+    return { data: { ...insertData, likes: 0, isLiked: false }, error: null };
   } catch (error) {
     console.error('Error uploading emoji:', error);
-    return { data: null, error };
+    return { data: null, error: error instanceof Error ? error : new Error('Unknown error occurred') };
   }
+}
+
+export async function toggleEmojiLike(emojiId: number, userId: string) {
+  // Check if the user has already liked this emoji
+  const { data: existingLike, error: fetchError } = await supabase
+    .from('emoji_likes')
+    .select()
+    .eq('emoji_id', emojiId)
+    .eq('user_id', userId)
+    .single();
+
+  if (fetchError && fetchError.code !== 'PGRST116') {
+    console.error('Error fetching like:', fetchError);
+    throw fetchError;
+  }
+
+  if (existingLike) {
+    // Unlike: Remove the like
+    const { error: deleteError } = await supabase
+      .from('emoji_likes')
+      .delete()
+      .eq('emoji_id', emojiId)
+      .eq('user_id', userId);
+
+    if (deleteError) {
+      console.error('Error unliking emoji:', deleteError);
+      throw deleteError;
+    }
+  } else {
+    // Like: Add a new like
+    const { error: insertError } = await supabase
+      .from('emoji_likes')
+      .insert({ emoji_id: emojiId, user_id: userId });
+
+    if (insertError) {
+      console.error('Error liking emoji:', insertError);
+      throw insertError;
+    }
+  }
+
+  // Get updated like count
+  const { count, error: countError } = await supabase
+    .from('emoji_likes')
+    .select('*', { count: 'exact', head: true })
+    .eq('emoji_id', emojiId);
+
+  if (countError) {
+    console.error('Error getting like count:', countError);
+    throw countError;
+  }
+
+  return { likeCount: count || 0, isLiked: !existingLike };
 }

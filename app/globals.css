@@ -90,3 +90,11 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+.emoji-input::placeholder {
+  font-weight: normal;
+}
+
+.emoji-input:not(:placeholder-shown) {
+  font-weight: bold;
+}

@@ -3,8 +3,10 @@ import React, { useState, KeyboardEvent } from 'react';
 import EmojiDisplay from './EmojiDisplay';
 
 interface EmojiImage {
+  id: number;
   url: string;
   likes: number;
+  isLiked: boolean;
 }
 
 interface EmojiMakerProps {
@@ -12,7 +14,7 @@ interface EmojiMakerProps {
 }
 
 const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
-  const [emojiImage, setEmojiImage] = useState<string | null>(null);
+  const [emojiImage, setEmojiImage] = useState<EmojiImage | null>(null);
   const [recentEmojis, setRecentEmojis] = useState<EmojiImage[]>([]);
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -40,8 +42,8 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
 
       const data = await response.json();
       if (data.imageUrl) {
-        setEmojiImage(data.imageUrl);
-        setRecentEmojis(prev => [{url: data.imageUrl, likes: 0}, ...prev.slice(0, 4)]);
+        setEmojiImage({ id: data.id, url: data.imageUrl, likes: 0, isLiked: false });
+        setRecentEmojis(prev => [{ id: data.id, url: data.imageUrl, likes: 0, isLiked: false }, ...prev.slice(0, 4)]);
       } else {
         throw new Error('No image URL in response');
       }
@@ -60,40 +62,39 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
     }
   };
 
-  const pollForResult = async (predictionId: string): Promise<string> => {
-    const maxAttempts = 30;
-    const interval = 2000; // 2 seconds
+  
 
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(resolve => setTimeout(resolve, interval));
+  const handleLike = async (emojiId: number) => {
+    try {
+      const response = await fetch('/api/toggle-like', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ emojiId, userId }),
+      });
 
-      const response = await fetch(`/api/check-prediction?id=${predictionId}`);
-      if (!response.ok) continue;
-
-      const data = await response.json();
-
-      if (data.status === 'succeeded' && data.output && data.output.length > 0) {
-        return data.output[0];
+      if (!response.ok) {
+        throw new Error('Failed to toggle like');
       }
 
-      if (data.status === 'failed') {
-        throw new Error('Emoji generation failed');
-      }
+      const { likeCount, isLiked } = await response.json();
 
-      if (data.status !== 'processing' && data.status !== 'starting') {
-        throw new Error('Unexpected status: ' + data.status);
+      setRecentEmojis(prev =>
+        prev.map(emoji =>
+          emoji.id === emojiId
+            ? { ...emoji, likes: likeCount, isLiked }
+            : emoji
+        )
+      );
+
+      if (emojiImage && emojiImage.id === emojiId) {
+        setEmojiImage({ ...emojiImage, likes: likeCount, isLiked });
       }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+      setError('Failed to update like');
     }
-
-    throw new Error('Emoji generation timed out');
-  };
-
-  const handleLike = (index: number) => {
-    setRecentEmojis(prev => 
-      prev.map((emoji, i) => 
-        i === index ? {...emoji, likes: emoji.likes + 1} : emoji
-      )
-    );
   };
 
   const handleDownload = (url: string) => {

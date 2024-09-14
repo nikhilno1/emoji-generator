@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { supabase, uploadEmojiToSupabase } from '@/lib/supabase';
+import {uploadEmojiToSupabase } from '@/lib/supabase';
 
 export async function POST(request: Request) {
   const token = process.env.REPLICATE_API_TOKEN;
@@ -59,14 +59,19 @@ export async function POST(request: Request) {
       const { data: uploadedData, error: uploadError } = await uploadEmojiToSupabase(imageUrl, userId, prompt);
 
       if (uploadError) {
-        throw new Error(`Failed to upload emoji: ${uploadError.message}`);
+        throw new Error(`Failed to upload emoji: ${uploadError instanceof Error ? uploadError.message : 'Unknown error'}`);
       }
 
       if (!uploadedData || !uploadedData.image_url) {
         throw new Error('Failed to get image URL after upload');
       }
 
-      return NextResponse.json({ imageUrl: uploadedData.image_url });
+      return NextResponse.json({ 
+        id: uploadedData.id, 
+        imageUrl: uploadedData.image_url,
+        likes: uploadedData.likes,
+        isLiked: uploadedData.isLiked
+      });
     } else {
       throw new Error('Failed to generate emoji');
     }
@@ -82,7 +87,7 @@ export async function POST(request: Request) {
   }
 }
 
-async function waitForPrediction(predictionId: string, token: string): Promise<any> {
+async function waitForPrediction(predictionId: string, token: string): Promise<{ status: string; output?: string[] }> {
   const maxAttempts = 30;
   const interval = 2000; // 2 seconds
 
