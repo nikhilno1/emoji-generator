@@ -7,7 +7,11 @@ interface EmojiImage {
   likes: number;
 }
 
-const EmojiMaker: React.FC = () => {
+interface EmojiMakerProps {
+  userId: string;
+}
+
+const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
   const [emojiImage, setEmojiImage] = useState<string | null>(null);
   const [recentEmojis, setRecentEmojis] = useState<EmojiImage[]>([]);
   const [prompt, setPrompt] = useState('');
@@ -27,7 +31,7 @@ const EmojiMaker: React.FC = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt: prompt.trim() }),
+        body: JSON.stringify({ prompt: prompt.trim(), userId }),
       });
 
       if (!response.ok) {
