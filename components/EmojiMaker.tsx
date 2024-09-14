@@ -35,23 +35,22 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate emoji');
+        throw new Error('Failed to generate emoji');
       }
 
       const data = await response.json();
-
-      if (data.id) {
-        const result = await pollForResult(data.id);
-        setEmojiImage(result);
-        setRecentEmojis(prev => [{url: result, likes: 0}, ...prev.slice(0, 4)]);
+      if (data.imageUrl) {
+        setEmojiImage(data.imageUrl);
+        setRecentEmojis(prev => [{url: data.imageUrl, likes: 0}, ...prev.slice(0, 4)]);
       } else {
-        throw new Error('Unexpected response from API');
+        throw new Error('No image URL in response');
       }
     } catch (error) {
+      console.error('Error generating emoji:', error);
       setError(error instanceof Error ? error.message : 'An unexpected error occurred');
     } finally {
       setIsGenerating(false);
+      setPrompt('');
     }
   };
 
