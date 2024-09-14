@@ -1,6 +1,6 @@
 {
     "functions": {
-      "api/generate-emoji/*.ts": {
+      "app/api/generate-emoji/route.ts": {
         "maxDuration": 60
       }
     }
