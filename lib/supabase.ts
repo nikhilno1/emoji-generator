@@ -99,5 +99,38 @@ export async function toggleEmojiLike(emojiId: number, userId: string) {
     throw countError;
   }
 
+  // Update the likes_count in the emojis table
+  const { error: updateError } = await supabase
+    .from('emojis')
+    .update({ likes_count: count })
+    .eq('id', emojiId);
+
+  if (updateError) {
+    console.error('Error updating emoji likes count:', updateError);
+    throw updateError;
+  }
+
   return { likeCount: count || 0, isLiked: !existingLike };
+}
+
+export async function getAllEmojis(userId: string) {
+  const { data, error } = await supabase
+    .from('emojis')
+    .select(`
+      *,
+      emoji_likes!left(user_id)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching emojis:', error);
+    throw error;
+  }
+
+  return data.map(emoji => ({
+    id: emoji.id,
+    image_url: emoji.image_url,
+    likes_count: emoji.likes_count,
+    isLiked: emoji.emoji_likes.some((like: { user_id: string }) => like.user_id === userId)
+  }));
 }

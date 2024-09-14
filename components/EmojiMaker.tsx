@@ -1,6 +1,8 @@
 'use client';
-import React, { useState, KeyboardEvent } from 'react';
+import React, { useState, KeyboardEvent, useEffect } from 'react';
 import EmojiDisplay from './EmojiDisplay';
+import EmojiGrid from './EmojiGrid';
+import { getAllEmojis } from '../lib/supabase';
 
 interface EmojiImage {
   id: number;
@@ -16,9 +18,29 @@ interface EmojiMakerProps {
 const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
   const [emojiImage, setEmojiImage] = useState<EmojiImage | null>(null);
   const [recentEmojis, setRecentEmojis] = useState<EmojiImage[]>([]);
+  const [allEmojis, setAllEmojis] = useState<EmojiImage[]>([]);
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAllEmojis();
+  }, [userId]);
+
+  const fetchAllEmojis = async () => {
+    try {
+      const emojis = await getAllEmojis(userId);
+      setAllEmojis(emojis.map(emoji => ({
+        id: emoji.id,
+        url: emoji.image_url,
+        likes: emoji.likes_count,
+        isLiked: emoji.isLiked
+      })));
+    } catch (error) {
+      console.error('Error fetching all emojis:', error);
+      setError('Failed to fetch emojis');
+    }
+  };
 
   const handleGenerateEmoji = async () => {
     if (!prompt.trim() || isGenerating) return;
@@ -44,6 +66,9 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
       if (data.imageUrl) {
         setEmojiImage({ id: data.id, url: data.imageUrl, likes: 0, isLiked: false });
         setRecentEmojis(prev => [{ id: data.id, url: data.imageUrl, likes: 0, isLiked: false }, ...prev.slice(0, 4)]);
+        
+        // Fetch all emojis again to update the grid
+        fetchAllEmojis();
       } else {
         throw new Error('No image URL in response');
       }
@@ -62,8 +87,6 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
     }
   };
 
-  
-
   const handleLike = async (emojiId: number) => {
     try {
       const response = await fetch('/api/toggle-like', {
@@ -80,7 +103,7 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
 
       const { likeCount, isLiked } = await response.json();
 
-      setRecentEmojis(prev =>
+      setAllEmojis(prev =>
         prev.map(emoji =>
           emoji.id === emojiId
             ? { ...emoji, likes: likeCount, isLiked }
@@ -91,6 +114,14 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
       if (emojiImage && emojiImage.id === emojiId) {
         setEmojiImage({ ...emojiImage, likes: likeCount, isLiked });
       }
+
+      setRecentEmojis(prev =>
+        prev.map(emoji =>
+          emoji.id === emojiId
+            ? { ...emoji, likes: likeCount, isLiked }
+            : emoji
+        )
+      );
     } catch (error) {
       console.error('Error toggling like:', error);
       setError('Failed to update like');
@@ -102,7 +133,7 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
   };
 
   return (
-    <div className="max-w-md mx-auto">
+    <div className="max-w-4xl mx-auto">
       <EmojiDisplay 
         emojiImage={emojiImage} 
         recentEmojis={recentEmojis}
@@ -127,6 +158,8 @@ const EmojiMaker: React.FC<EmojiMakerProps> = ({ userId }) => {
         </button>
         {error && <p className="mt-4 text-red-500 text-center">{error}</p>}
       </div>
+      <h2 className="text-2xl font-bold mt-12 mb-4">All Emojis</h2>
+      <EmojiGrid emojis={allEmojis} onLike={handleLike} />
     </div>
   );
 };
